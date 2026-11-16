@@ -96,20 +96,36 @@ export function apply(ctx) {
     disposers.push(server.register({
       kind: 'exact',
       path: TOKEN_PATH,
-      resource: async (request) => {
-        if (request.method === 'PUT') {
-          const body = await request.json().catch(() => null)
-          const token = body && typeof body.token === 'string' ? body.token.trim() : ''
-          if (!token) return Response.json({ ok: false, error: 'empty token' }, { status: 400 })
-          await credentials.set(TOKEN_REF, token)
-          return Response.json({ ok: true, hasToken: true })
+      handler: async (req, res) => {
+        const send = (status, body) => {
+          res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+          res.end(JSON.stringify(body))
         }
-        if (request.method === 'DELETE') {
-          await credentials.unset(TOKEN_REF)
-          return Response.json({ ok: true, hasToken: false })
+        try {
+          if (req.method === 'PUT') {
+            const chunks = []
+            for await (const chunk of req) chunks.push(chunk)
+            let body = null
+            try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')) } catch { body = null }
+            const token = body && typeof body.token === 'string' ? body.token.trim() : ''
+            if (!token) { send(400, { ok: false, error: 'empty token' }); return }
+            await credentials.set(TOKEN_REF, token)
+            send(200, { ok: true, hasToken: true })
+            return
+          }
+          if (req.method === 'DELETE') {
+            await credentials.unset(TOKEN_REF)
+            send(200, { ok: true, hasToken: false })
+            return
+          }
+          if (req.method === 'GET') {
+            send(200, { ok: true, hasToken: !!(await resolveToken()) })
+            return
+          }
+          send(405, { ok: false, error: 'method not allowed' })
+        } catch (error) {
+          send(500, { ok: false, error: error && error.message ? error.message : String(error) })
         }
-        const hasToken = !!(await resolveToken())
-        return Response.json({ ok: true, hasToken })
       },
     }))
 
