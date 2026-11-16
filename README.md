@@ -1,39 +1,48 @@
-# DeepSeek balance
+# Баланс DeepSeek
 
-Always-visible floating card showing your DeepSeek account balance and today's spend.
+Плавающая карточка, всегда видимая в правом нижнем углу: баланс аккаунта DeepSeek и расход за сегодня.
 
-## What it shows
+## Что показывает
 
-- **Balance** — total available balance (recharge + bonus wallets) of your signed-in DeepSeek account.
-- **Spent today** — the platform's usage cost for the current local day, the same number the Usage page shows under **Cost**.
+- **Баланс** — доступный остаток (пополнения + бонусные кошельки) вашего аккаунта DeepSeek.
+- **Потрачено сегодня** — фактическая стоимость токенов за текущие локальные сутки; то же число, что карточка **Cost** на странице Usage.
+- **Пополнить** / **Usage** — ссылки на пополнение и страницу расходов платформы.
 
-## How it works
+## Как работает
 
-- The Host half reads the balance through DSH's built-in DeepSeek account service (`deepseekAccount.getBalance`) and the day's cost through the platform usage export (`/api/v0/usage/export`), and serves both on `GET /api/deepseek-balance/snapshot`.
-- The usage-export endpoint needs the platform **web** `userToken` (from `localStorage.getItem("userToken")` at `platform.deepseek.com`), which is a different credential from the DSH account grant. The card asks for it once and stores it in DSH credentials (`DEEPSEEK_BALANCE_USER_TOKEN`); it is sent only to `platform.deepseek.com`.
-- The Client half renders a floating card in the `shell.overlay` slot (visible on every screen) and refreshes every 5 minutes.
+- Host-половина читает баланс через встроенный сервис аккаунта DSH (`deepseekAccount.getBalance`), а суточную стоимость — через экспорт использования платформы (`/api/v0/usage/export`); отдаёт оба значения на `GET /api/deepseek-balance/snapshot`.
+- Эндпоинт экспорта требует **веб-токен** `userToken` платформы (из `localStorage.getItem("userToken")` на `platform.deepseek.com`) — это не тот же токен, что grant аккаунта DSH. Карточка запрашивает его один раз и хранит в credentials DSH (`DEEPSEEK_BALANCE_USER_TOKEN`); отправляется только на `platform.deepseek.com`.
+- Client-половина рисует плавающую карточку в слоте `shell.overlay` (видна на всех экранах) и обновляется раз в 5 минут.
 
-## Files
+## Как включить точный расход
 
-| File | What it does |
+1. Войдите на `platform.deepseek.com` в браузере.
+2. Откройте DevTools → Console и выполните `localStorage.getItem("userToken")`.
+3. В карточке нажмите **«Указать токен»** и вставьте значение.
+
+Без токена «Потрачено сегодня» показывает «—».
+
+## Файлы
+
+| Файл | Назначение |
 |---|---|
-| `index.js` | Host half: balance and today's cost, served on `/api/deepseek-balance/snapshot`; token set on `/api/deepseek-balance/token`. |
-| `client.js` | Client half: the floating card in `shell.overlay`. |
-| `package.json` | Bundle manifest: `dsh.bundle.patch`, `dsh.client` entry, exports. |
-| `cordis.patch.yml` | Loader patch that inserts the plugin row. |
-| `locale/en.json` | English title and description for Plugin Manager. |
-| `locale/ru.json` | Russian title and description for Plugin Manager. |
-| `icon.svg` | Plugin icon (36×36). |
-| `docs/DETAIL.md` | Detail page shown in Plugin Manager. |
-| `.gitignore` | Keeps `node_modules/` out of the repo. |
-| `README.md` | This file. |
+| `index.js` | Host-половина: баланс и суточный расход на `/api/deepseek-balance/snapshot`; токен — на `/api/deepseek-balance/token`. |
+| `client.js` | Client-половина: плавающая карточка в `shell.overlay`. |
+| `package.json` | Манифест бандла: `dsh.bundle.patch`, `dsh.client`, экспорты. |
+| `cordis.patch.yml` | Патч загрузчика, вставляющий строку плагина. |
+| `locale/en.json` | Английское название и описание для менеджера плагинов. |
+| `locale/ru.json` | Русское название и описание для менеджера плагинов. |
+| `icon.svg` | Иконка плагина (36×36). |
+| `docs/DETAIL.md` | Страница подробностей в менеджере плагинов. |
+| `.gitignore` | Не коммитит `node_modules/`. |
+| `README.md` | Этот файл. |
 
-## Requirements
+## Требования
 
-- Sign in to your DeepSeek account in DSH (**Settings → Account**).
-- For "Spent today", provide the platform web `userToken` once (the card shows an "Указать токен" action).
+- Войдите в аккаунт DeepSeek в DSH (**Настройки → Аккаунт**).
+- Для «Потрачено сегодня» один раз укажите веб-`userToken` платформы.
 
-## Limitations
+## Ограничения
 
-- The day's cost comes from `platform.deepseek.com/api/v0/usage/export` — a private endpoint that may change without notice. If it fails, the card shows "—".
-- The platform splits usage by UTC day; the cost is computed over the local-timezone window from 00:00 to the current hour, matching the platform's **Today** filter.
+- Суточная стоимость берётся из `platform.deepseek.com/api/v0/usage/export` — приватного эндпоинта, который может измениться без предупреждения. При сбое карточка показывает «—».
+- Платформа режет использование по UTC-суткам, поэтому окно считается с локального 00:00 до текущего часа — так число совпадает с фильтром **Today** на сайте.

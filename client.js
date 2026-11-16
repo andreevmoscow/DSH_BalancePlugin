@@ -43,7 +43,7 @@ window.__ModuleLoader__.load({
       card: {
         position: 'fixed', right: 16, bottom: 16, zIndex: 2147483000,
         pointerEvents: 'auto',
-        width: 244, boxSizing: 'border-box', borderRadius: 12,
+        width: 248, boxSizing: 'border-box', borderRadius: 12,
         padding: '12px 14px',
         background: 'var(--dsw-alias-bg-overlay, #ffffff)',
         border: '1px solid var(--dsw-alias-border-l1, #e5e5e5)',
@@ -77,13 +77,20 @@ window.__ModuleLoader__.load({
       spent: { fontWeight: 600, fontVariantNumeric: 'tabular-nums' },
       bonus: { color: 'var(--dsw-alias-label-secondary, #6b6b6b)', fontSize: 11, marginTop: 4 },
       hint: { color: 'var(--dsw-alias-label-secondary, #6b6b6b)', fontSize: 12, marginTop: 6 },
-      error: { color: 'var(--dsw-alias-state-error-primary, #d93025)', fontSize: 12, marginTop: 4 },
+      error: { color: 'var(--dsw-alias-state-error-primary, #d93025)', fontSize: 11, marginTop: 4 },
       links: { display: 'flex', gap: 14, marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--dsw-alias-border-l1, #e5e5e5)' },
       link: { color: 'var(--dsw-alias-brand-primary, #247bbf)', textDecoration: 'none', fontSize: 12, cursor: 'pointer' },
       linkBtn: {
         background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer',
         color: 'var(--dsw-alias-brand-primary, #247bbf)', fontSize: 12, textDecoration: 'underline',
       },
+      tokenBox: { marginTop: 6 },
+      input: {
+        width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6,
+        border: '1px solid var(--dsw-alias-border-l1, #e5e5e5)',
+        background: 'var(--dsw-alias-bg-layer-2, #f5f5f5)', color: 'inherit',
+      },
+      tokenActions: { display: 'flex', gap: 12, marginTop: 6, alignItems: 'center' },
       updated: { color: 'var(--dsw-alias-label-secondary, #6b6b6b)', fontSize: 10, marginTop: 8, textAlign: 'right' },
     }
 
@@ -91,7 +98,10 @@ window.__ModuleLoader__.load({
       const [snapshot, setSnapshot] = useState(null) // { payload, totals, at }
       const [error, setError] = useState(null)
       const [collapsed, setCollapsed] = useState(false)
+      const [tokenMode, setTokenMode] = useState(false)
+      const [tokenValue, setTokenValue] = useState('')
       const [saving, setSaving] = useState(false)
+      const [saveError, setSaveError] = useState(null)
 
       const load = useCallback(async () => {
         try {
@@ -115,27 +125,26 @@ window.__ModuleLoader__.load({
       }, [load])
 
       const saveToken = useCallback(async () => {
-        if (!(typeof window !== 'undefined' && typeof window.prompt === 'function')) {
-          setError('Ввод токена недоступен в этом окне')
-          return
-        }
-        const value = window.prompt('Вставьте userToken: в консоли platform.deepseek.com выполните localStorage.getItem("userToken")')
-        if (!value || !value.trim()) return
+        const token = tokenValue.trim()
+        if (!token) { setSaveError('Вставьте токен'); return }
         setSaving(true)
+        setSaveError(null)
         try {
           const res = await fetch('/api/deepseek-balance/token', {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ token: value.trim() }),
+            body: JSON.stringify({ token }),
           })
           if (!res.ok) throw new Error('HTTP ' + res.status)
+          setTokenMode(false)
+          setTokenValue('')
           await load()
         } catch (e) {
-          setError(e && e.message ? e.message : String(e))
+          setSaveError(e && e.message ? e.message : String(e))
         } finally {
           setSaving(false)
         }
-      }, [load])
+      }, [tokenValue, load])
 
       if (collapsed || (!snapshot && !error)) {
         let label = error ? '!' : '…'
@@ -182,8 +191,26 @@ window.__ModuleLoader__.load({
             bonus[c] ? h('div', { style: s.bonus }, `В т.ч. бонус: ${fmt(c, bonus[c])}`) : null,
           )),
           spent === null ? h('div', { style: s.bonus },
-            h('div', null, payload.hasToken ? 'Расход за сегодня недоступен' : 'Для точного расхода нужен userToken'),
-            h('button', { style: s.linkBtn, onClick: saveToken }, saving ? 'Сохранение…' : payload.hasToken ? 'Обновить токен' : 'Указать токен'),
+            h('div', null, payload.hasToken
+              ? 'Расход за сегодня недоступен (проверьте токен)'
+              : 'Для точного расхода нужен userToken платформы'),
+            tokenMode
+              ? h('div', { style: s.tokenBox },
+                  h('input', {
+                    style: s.input,
+                    type: 'password',
+                    value: tokenValue,
+                    placeholder: 'userToken из localStorage',
+                    onChange: (e) => { setTokenValue(e.target.value); setSaveError(null) },
+                    onKeyDown: (e) => { if (e.key === 'Enter') saveToken() },
+                  }),
+                  h('div', { style: s.tokenActions },
+                    h('button', { style: s.linkBtn, onClick: saveToken, disabled: saving }, saving ? 'Сохранение…' : 'Сохранить'),
+                    h('button', { style: s.linkBtn, onClick: () => { setTokenMode(false); setSaveError(null) } }, 'Отмена'),
+                  ),
+                  saveError ? h('div', { style: s.error }, saveError) : null,
+                )
+              : h('button', { style: s.linkBtn, onClick: () => setTokenMode(true) }, payload.hasToken ? 'Обновить токен' : 'Указать токен'),
           ) : null,
         )
       } else if (payload) {

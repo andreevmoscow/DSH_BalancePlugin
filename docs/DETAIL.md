@@ -1,47 +1,47 @@
-# DeepSeek balance
+# Баланс DeepSeek
 
-A small floating card, pinned to the bottom-right corner, that stays visible on every screen of DeepSeek Harness.
+Небольшая плавающая карточка в правом нижнем углу, всегда видимая на всех экранах DeepSeek Harness.
 
-## What it shows
+## Что показывает
 
-- **Баланс** — total available balance (recharge + bonus wallets) of your signed-in DeepSeek account, per currency (CNY / USD).
-- **Потрачено сегодня** — the platform's usage cost for the local day, matching the **Cost** card on `platform.deepseek.com/usage`.
-- **Пополнить** / **Usage** — links to the DeepSeek platform top-up and usage pages.
+- **Баланс** — доступный остаток (пополнения + бонусные кошельки) аккаунта DeepSeek, по валютам (CNY / USD).
+- **Потрачено сегодня** — фактическая стоимость токенов за локальные сутки; совпадает с карточкой **Cost** на `platform.deepseek.com/usage`.
+- **Пополнить** / **Usage** — ссылки на пополнение и страницу расходов.
 
-## Matching the site exactly
+## Поведение
 
-The site's "Cost" is the actual token cost for the day, read from the platform's private usage export (`/api/v0/usage/export`). That endpoint does **not** accept the DSH account grant token — it needs the platform **web** `userToken`:
+- Обновляется раз в 5 минут и по кнопке ↻.
+- Сворачивается в компактную «пилюлю» кнопками ↻ и —.
+- При выходе из аккаунта показывает подсказку войти в **Настройки → Аккаунт**.
 
-1. Sign in to `platform.deepseek.com` in a browser.
-2. Open DevTools → Console and run `localStorage.getItem("userToken")`.
-3. In the card, click **Указать токен** and paste the value.
+## Как совпасть с сайтом точно
 
-The token is stored in DSH credentials (`DEEPSEEK_BALANCE_USER_TOKEN`) and sent only to `platform.deepseek.com`. Without it, "Потрачено сегодня" shows "—".
+Сайт показывает **Cost** — реальную стоимость токенов за сутки, из приватного экспорта использования (`/api/v0/usage/export`). Этот эндпоинт **не принимает** grant-токен аккаунта DSH, ему нужен **веб-токен** `userToken`:
 
-## Behavior
+1. Войдите на `platform.deepseek.com` в браузере.
+2. DevTools → Console → выполните `localStorage.getItem("userToken")`.
+3. В карточке нажмите **«Указать токен»** и вставьте значение.
 
-- Refreshes every 5 minutes and on the ↻ button.
-- Collapses to a compact pill with the ↻ and — buttons.
-- When you are signed out, it shows a hint to sign in at **Settings → Account**.
+Токен хранится в credentials DSH (`DEEPSEEK_BALANCE_USER_TOKEN`) и отправляется только на `platform.deepseek.com`. Без него «Потрачено сегодня» показывает «—».
 
-## Semantics and limits
+## Семантика и ограничения
 
-- Balance comes from the DeepSeek platform wallet service and is authoritative.
-- "Потрачено сегодня" is the sum of `price × amount` over token rows of the local-day usage export — the same computation the platform uses for its Cost card.
-- The platform splits raw usage by UTC day, so the export window runs from local 00:00 to the current hour to align with local "today".
-- If the private usage endpoint changes or is unavailable, the card shows "—".
+- Баланс берётся из кошелькового сервиса платформы и авторитетен.
+- «Потрачено сегодня» — сумма `price × amount` по token-строкам локального окна экспорта, тем же расчётом, что у карточки Cost.
+- Платформа режет сырое использование по UTC-суткам, поэтому окно — с локального 00:00 до текущего часа, чтобы совпадать с фильтром **Today**.
+- Если приватный эндпоинт изменится или недоступен — карточка показывает «—».
 
-## Files
+## Файлы
 
-| File | What it does |
+| Файл | Назначение |
 |---|---|
-| `index.js` | Host half: balance + today's cost, served on `/api/deepseek-balance/snapshot`; token set on `/api/deepseek-balance/token`. |
-| `client.js` | Client half: the floating card in `shell.overlay`. |
-| `package.json` | Bundle manifest. |
-| `cordis.patch.yml` | Loader patch that inserts the plugin row. |
-| `locale/en.json` | English title and description. |
-| `locale/ru.json` | Russian title and description. |
-| `icon.svg` | Plugin icon. |
-| `docs/DETAIL.md` | This detail page. |
-| `.gitignore` | Keeps `node_modules/` out of the repo. |
-| `README.md` | Overview. |
+| `index.js` | Host-половина: баланс и суточный расход на `/api/deepseek-balance/snapshot`; токен — на `/api/deepseek-balance/token`. |
+| `client.js` | Client-половина: плавающая карточка в `shell.overlay`. |
+| `package.json` | Манифест бандла. |
+| `cordis.patch.yml` | Патч загрузчика, вставляющий строку плагина. |
+| `locale/en.json` | Английское название и описание. |
+| `locale/ru.json` | Русское название и описание. |
+| `icon.svg` | Иконка плагина. |
+| `docs/DETAIL.md` | Эта страница подробностей. |
+| `.gitignore` | Не коммитит `node_modules/`. |
+| `README.md` | Обзор. |
