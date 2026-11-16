@@ -1,3 +1,4 @@
+# Loader patch: inserts the DeepSeek balance plugin row into the profile.
 - insert:
     - id: deepseek-balance
       name: '@local/deepseek-balance'

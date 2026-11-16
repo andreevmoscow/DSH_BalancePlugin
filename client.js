@@ -10,14 +10,6 @@ window.__ModuleLoader__.load({
 
     const SYMBOL = { CNY: '¥', USD: '$' }
     const REFRESH_MS = 5 * 60 * 1000
-    const LS_KEY = 'deepseek-balance.day-start.v1'
-
-    function localDay() {
-      const d = new Date()
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const dd = String(d.getDate()).padStart(2, '0')
-      return `${d.getFullYear()}-${mm}-${dd}`
-    }
 
     function sumWallets(wallets) {
       const out = {}
@@ -43,36 +35,6 @@ window.__ModuleLoader__.load({
       return sumWallets(balance && balance.bonusWallets)
     }
 
-    function readDayStart() {
-      try {
-        const raw = localStorage.getItem(LS_KEY)
-        return raw ? JSON.parse(raw) : null
-      } catch (e) {
-        return null
-      }
-    }
-
-    function writeDayStart(v) {
-      try {
-        localStorage.setItem(LS_KEY, JSON.stringify(v))
-      } catch (e) { /* ignore */ }
-    }
-
-    /** Approximate "spent today": the balance drop since this browser first saw it today. */
-    function computeSpent(totals) {
-      const today = localDay()
-      let ds = readDayStart()
-      if (!ds || ds.date !== today) {
-        writeDayStart({ date: today, totals })
-        return {}
-      }
-      const spent = {}
-      for (const c of Object.keys(totals)) {
-        spent[c] = Math.max(0, ((ds.totals && ds.totals[c]) || 0) - totals[c])
-      }
-      return spent
-    }
-
     function fmt(c, amount) {
       return `${SYMBOL[c] || (c + ' ')}${Number(amount).toFixed(2)}`
     }
@@ -81,7 +43,7 @@ window.__ModuleLoader__.load({
       card: {
         position: 'fixed', right: 16, bottom: 16, zIndex: 2147483000,
         pointerEvents: 'auto',
-        width: 236, boxSizing: 'border-box', borderRadius: 12,
+        width: 244, boxSizing: 'border-box', borderRadius: 12,
         padding: '12px 14px',
         background: 'var(--dsw-alias-bg-overlay, #ffffff)',
         border: '1px solid var(--dsw-alias-border-l1, #e5e5e5)',
@@ -118,13 +80,18 @@ window.__ModuleLoader__.load({
       error: { color: 'var(--dsw-alias-state-error-primary, #d93025)', fontSize: 12, marginTop: 4 },
       links: { display: 'flex', gap: 14, marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--dsw-alias-border-l1, #e5e5e5)' },
       link: { color: 'var(--dsw-alias-brand-primary, #247bbf)', textDecoration: 'none', fontSize: 12, cursor: 'pointer' },
+      linkBtn: {
+        background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer',
+        color: 'var(--dsw-alias-brand-primary, #247bbf)', fontSize: 12, textDecoration: 'underline',
+      },
       updated: { color: 'var(--dsw-alias-label-secondary, #6b6b6b)', fontSize: 10, marginTop: 8, textAlign: 'right' },
     }
 
     function Widget() {
-      const [snapshot, setSnapshot] = useState(null) // { payload, totals, spent, at }
+      const [snapshot, setSnapshot] = useState(null) // { payload, totals, at }
       const [error, setError] = useState(null)
       const [collapsed, setCollapsed] = useState(false)
+      const [saving, setSaving] = useState(false)
 
       const load = useCallback(async () => {
         try {
@@ -134,9 +101,7 @@ window.__ModuleLoader__.load({
           const res = await fetch(`/api/deepseek-balance/snapshot?locale=${encodeURIComponent(locale)}&tz=${tz}`)
           if (!res.ok) throw new Error(`HTTP ${res.status}`)
           const json = await res.json()
-          const totals = totalsOf(json.balance)
-          const spent = computeSpent(totals)
-          setSnapshot({ payload: json, totals, spent, at: Date.now() })
+          setSnapshot({ payload: json, totals: totalsOf(json.balance), at: Date.now() })
           setError(json && json.error ? json.error : null)
         } catch (e) {
           setError(e && e.message ? e.message : String(e))
@@ -147,6 +112,29 @@ window.__ModuleLoader__.load({
         load()
         const timer = setInterval(load, REFRESH_MS)
         return () => clearInterval(timer)
+      }, [load])
+
+      const saveToken = useCallback(async () => {
+        if (!(typeof window !== 'undefined' && typeof window.prompt === 'function')) {
+          setError('Ввод токена недоступен в этом окне')
+          return
+        }
+        const value = window.prompt('Вставьте userToken: в консоли platform.deepseek.com выполните localStorage.getItem("userToken")')
+        if (!value || !value.trim()) return
+        setSaving(true)
+        try {
+          const res = await fetch('/api/deepseek-balance/token', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token: value.trim() }),
+          })
+          if (!res.ok) throw new Error('HTTP ' + res.status)
+          await load()
+        } catch (e) {
+          setError(e && e.message ? e.message : String(e))
+        } finally {
+          setSaving(false)
+        }
       }, [load])
 
       if (collapsed || (!snapshot && !error)) {
@@ -177,21 +165,26 @@ window.__ModuleLoader__.load({
       } else if (payload && payload.balance) {
         const bonus = bonusOf(payload.balance)
         const currencies = Object.keys(snapshot.totals).sort()
+        const spent = typeof payload.spentToday === 'number' ? payload.spentToday : null
         inner = h('div', null,
-          ...currencies.map((c) => h('div', { key: c },
+          ...currencies.map((c, index) => h('div', { key: c },
             h('div', { style: s.row },
               h('span', { style: s.rowLabel }, 'Баланс'),
               h('span', { style: s.amountBig }, fmt(c, snapshot.totals[c])),
             ),
-            h('div', { style: s.row },
+            index === 0 ? h('div', { style: s.row },
               h('span', {
                 style: s.rowLabel,
-                title: 'Приблизительно: разница баланса с начала дня. Пополнения и гранты могут занижать значение.',
+                title: 'Расход за сегодня по данным platform.deepseek.com (Cost).',
               }, 'Потрачено сегодня'),
-              h('span', { style: s.spent }, fmt(c, snapshot.spent[c] || 0)),
-            ),
+              h('span', { style: s.spent }, spent === null ? '—' : fmt(c, spent)),
+            ) : null,
             bonus[c] ? h('div', { style: s.bonus }, `В т.ч. бонус: ${fmt(c, bonus[c])}`) : null,
           )),
+          spent === null ? h('div', { style: s.bonus },
+            h('div', null, payload.hasToken ? 'Расход за сегодня недоступен' : 'Для точного расхода нужен userToken'),
+            h('button', { style: s.linkBtn, onClick: saveToken }, saving ? 'Сохранение…' : payload.hasToken ? 'Обновить токен' : 'Указать токен'),
+          ) : null,
         )
       } else if (payload) {
         inner = h('div', { style: s.hint }, 'Баланс не определён.')
