@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "DeepSeek balance",
+    "description": "Shows your DeepSeek account balance and today's spend in an always-visible floating card.",
+    "detail": "docs/DETAIL.md"
+  }
+}
