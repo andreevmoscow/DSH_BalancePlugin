@@ -23,7 +23,6 @@ const TOKEN_TYPES = new Set(['output_tokens', 'input_cache_hit_tokens', 'input_c
 
 export function apply(ctx) {
   const server = ctx.get('webServer')
-  const account = ctx.get('deepseekAccount')
   const credentials = ctx.get('credentials')
   if (!server || !credentials) return
 
@@ -44,6 +43,8 @@ export function apply(ctx) {
       kind: 'exact',
       path: SNAPSHOT_PATH,
       resource: async (request) => {
+        // Resolved per request: the account service may activate after this plugin.
+        const account = ctx.get('deepseekAccount')
         const url = new URL(request.url)
         const meta = {
           version: url.searchParams.get('version') || '0.2.2-rc.3',
